@@ -44,7 +44,7 @@ const Hero = () => {
       // Save to localStorage for future use
       localStorage.setItem("passwords", JSON.stringify(savedPasswords));
     } catch (err) {
-      setError("Failed to load passwords. Using empty list.");
+     
       console.error("Error fetching passwords:", err);
       setPasswordArray([]);
     } finally {

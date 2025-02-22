@@ -1,5 +1,6 @@
 {
   "name": "vaultora-mongo",
+  "homepage": "https://abhi-rai-001.github.io/Vaultora",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,13 +8,19 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.0.8",
+    "cors": "^2.8.5",
+    "lucide-react": "^0.475.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-toastify": "^11.0.3",
     "tailwindcss": "^4.0.8",
+    "ui": "^0.2.4",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

@@ -13,7 +13,7 @@ const Navbar = () => {
           <div className="flex items-center">
             <div className="flex items-center  flex-shrink-0">
               <img src={Logo} alt="logo" className="w-20 h-15" />
-              <span className="text-xl font-bold pr-2">Vaultora</span> <sub>v.Local</sub>
+              <span className="text-xl font-bold pr-2">Vaultora</span>
             </div>
           </div>
           

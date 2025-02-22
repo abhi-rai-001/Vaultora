@@ -15,9 +15,6 @@ const Footer = () => {
                 Vaultora
               </span>
             </a>
-            <span className="text-white opacity-50 text-center md:text-left text-sm md:text-base">
-              This version stores password in your Local Storage.
-            </span>
           </div>
 
           <div className="grid grid-cols-2 gap-8 text-center md:text-left">

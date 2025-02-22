@@ -11,6 +11,8 @@ const Hero = () => {
   const [isEyeOpen, setIsEyeOpen] = useState(false);
   const [visiblePasswords, setVisiblePasswords] = useState({});
   const [passwordArray, setPasswordArray] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [data, setData] = useState({
     website: '',
     username: '',
@@ -18,11 +20,40 @@ const Hero = () => {
   });
   const [editingId, setEditingId] = useState(null);
 
-  useEffect(() => {
-    const savedPasswords = localStorage.getItem("passwords");
-    if (savedPasswords) {
-      setPasswordArray(JSON.parse(savedPasswords));
+  const getPassword = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // First try to get from localStorage
+      const localPasswords = localStorage.getItem("passwords");
+      if (localPasswords) {
+        setPasswordArray(JSON.parse(localPasswords));
+        setIsLoading(false);
+        return;
+      }
+
+      // If no local data, try the API
+      const response = await fetch("https://localhost:3000/");
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const savedPasswords = await response.json();
+      setPasswordArray(savedPasswords);
+      
+      // Save to localStorage for future use
+      localStorage.setItem("passwords", JSON.stringify(savedPasswords));
+    } catch (err) {
+      setError("Failed to load passwords. Using empty list.");
+      console.error("Error fetching passwords:", err);
+      setPasswordArray([]);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
+    getPassword();
   }, []);
 
   const toggleEyeIcon = () => {
@@ -30,69 +61,94 @@ const Hero = () => {
   };
 
   const togglePasswordVisibility = (rowIndex) => {
-    setVisiblePasswords((prev) => ({
+    setVisiblePasswords(prev => ({
       ...prev,
       [rowIndex]: !prev[rowIndex],
     }));
   };
 
   const handleChange = (e) => {
-    setData({ ...data, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
-  const copyToClipboard = (text) => {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        toast.info("Copied to clipboard...", {
-          position: "top-right",
-          autoClose: 5000,
-          hideProgressBar: false,
-          closeOnClick: false,
-          pauseOnHover: true,
-          draggable: true,
-          progress: undefined,
-          theme: "light",
-        });
-      })
-      .catch((err) => {
-        console.error("Failed to copy: ", err);
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.info("Copied to clipboard!", {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "light",
       });
+    } catch (err) {
+      toast.error("Failed to copy to clipboard", {
+        position: "top-right",
+        autoClose: 3000,
+      });
+      console.error("Failed to copy:", err);
+    }
   };
 
-  const savePassword = () => {
+  const validateData = () => {
     if (!data.website || !data.username || !data.password) {
       toast.error("Please fill all fields", {
         position: "top-right",
       });
-      return;
+      return false;
     }
+    return true;
+  };
 
-    const newPasswordArray = editingId
-      ? passwordArray.map(item => 
-          item.id === editingId ? { ...data, id: editingId } : item
-        )
-      : [...passwordArray, { ...data, id: uuidv4() }];
+  const savePassword = () => {
+    if (!validateData()) return;
 
-    setPasswordArray(newPasswordArray);
-    localStorage.setItem("passwords", JSON.stringify(newPasswordArray));
-    setData({ website: '', username: '', password: '' });
-    setEditingId(null);
-    
-    toast.success(editingId ? "Password updated!" : "Password saved!", {
-      position: "top-right",
-    });
+    try {
+      const newPasswordArray = editingId
+        ? passwordArray.map(item => 
+            item.id === editingId ? { ...data, id: editingId } : item
+          )
+        : [...passwordArray, { ...data, id: uuidv4() }];
+
+      setPasswordArray(newPasswordArray);
+      localStorage.setItem("passwords", JSON.stringify(newPasswordArray));
+      setData({ website: '', username: '', password: '' });
+      setEditingId(null);
+      
+      toast.success(editingId ? "Password updated!" : "Password saved!", {
+        position: "top-right",
+      });
+    } catch (err) {
+      toast.error("Failed to save password", {
+        position: "top-right",
+      });
+      console.error("Error saving password:", err);
+    }
   };
 
   const deletePassword = (id) => {
-    const newPasswordArray = passwordArray.filter(item => item.id !== id);
-    setPasswordArray(newPasswordArray);
-    localStorage.setItem("passwords", JSON.stringify(newPasswordArray));
+    try {
+      const newPasswordArray = passwordArray.filter(item => item.id !== id);
+      setPasswordArray(newPasswordArray);
+      localStorage.setItem("passwords", JSON.stringify(newPasswordArray));
 
-    toast.info("Deleted Credentials", {
-      position: "top-right",
-      autoClose: 5000,
-    });
+      toast.info("Credentials deleted", {
+        position: "top-right",
+        autoClose: 3000,
+      });
+    } catch (err) {
+      toast.error("Failed to delete credentials", {
+        position: "top-right",
+      });
+      console.error("Error deleting password:", err);
+    }
   };
 
   const editPassword = (id) => {
@@ -108,6 +164,14 @@ const Hero = () => {
     savePassword();
   };
 
+  if (isLoading) {
+    return <div className="text-center py-10">Loading...</div>;
+  }
+
+  if (error) {
+    toast.error(error);
+  }
+
   return (
     <div className="container mx-auto mt-50 px-4">
       <form className="max-w-md mx-auto bg-white/80 backdrop-blur-sm p-8 rounded-lg shadow-lg transform transition-all duration-300 hover:shadow-xl hover:scale-[1.02]">
@@ -117,20 +181,53 @@ const Hero = () => {
         <div className="space-y-4">
           <div className="form-group">
             <h2 className="text-sm font-medium text-gray-700 mb-1 transform transition-all duration-200 hover:translate-x-1">Add your website</h2>
-            <input className="w-full px-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:border-blue-400 transform hover:-translate-y-0.5" name="website" type="url" placeholder="Enter your website URL" value={data.website} onChange={handleChange} />
+            <input 
+              className="w-full px-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:border-blue-400 transform hover:-translate-y-0.5" 
+              name="website" 
+              type="url" 
+              placeholder="Enter your website URL" 
+              value={data.website} 
+              onChange={handleChange}
+              required 
+            />
           </div>
           <div className="form-group">
             <h2 className="text-sm font-medium text-gray-700 mb-1 transform transition-all duration-200 hover:translate-x-1">Add your username</h2>
-            <input className="w-full px-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:border-blue-400 transform hover:-translate-y-0.5" name="username" type="email" placeholder="Enter your email" value={data.username} onChange={handleChange} />
+            <input 
+              className="w-full px-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:border-blue-400 transform hover:-translate-y-0.5" 
+              name="username" 
+              type="email" 
+              placeholder="Enter your email" 
+              value={data.username} 
+              onChange={handleChange}
+              required 
+            />
           </div>
           <div className="form-group">
             <h2 className="text-sm font-medium text-gray-700 mb-1 transform transition-all duration-200 hover:translate-x-1">Add your password</h2>
             <div className="relative">
-              <input className="w-full px-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:border-blue-400 transform hover:-translate-y-0.5" name="password" type={isEyeOpen ? 'text' : 'password'} placeholder="Enter your password" value={data.password} onChange={handleChange} />
-              <img src={isEyeOpen ? EyeOpenIcon : EyeClosedIcon} alt="eye" className="eye w-5 h-5 absolute right-2 top-3" onClick={toggleEyeIcon} />
+              <input 
+                className="w-full px-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:border-blue-400 transform hover:-translate-y-0.5" 
+                name="password" 
+                type={isEyeOpen ? 'text' : 'password'} 
+                placeholder="Enter your password" 
+                value={data.password} 
+                onChange={handleChange}
+                required 
+              />
+              <img 
+                src={isEyeOpen ? EyeOpenIcon : EyeClosedIcon} 
+                alt="toggle password visibility" 
+                className="w-5 h-5 absolute right-2 top-3 cursor-pointer" 
+                onClick={toggleEyeIcon} 
+              />
             </div>
           </div>
-          <button className="w-full mt-6 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg active:scale-95" type="submit" onClick={handleSubmit}>
+          <button 
+            className="w-full mt-6 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg active:scale-95" 
+            type="submit" 
+            onClick={handleSubmit}
+          >
             {editingId ? 'Update' : 'Submit'}
           </button>
         </div>
@@ -146,13 +243,11 @@ const Hero = () => {
         </h2>
 
         <div className="flex justify-between">
-          {passwordArray.length === 0 && (
+          {passwordArray.length === 0 ? (
             <div className="text-center text-gray-500 w-full font-semibold text-xl py-10 animate-pulse">
               No passwords added yet
             </div>
-          )}
-
-          {passwordArray.length !== 0 && (
+          ) : (
             <div className="w-full overflow-x-auto rounded-lg shadow">
               <table className="w-full divide-y divide-gray-200">
                 <thead className="bg-gradient-to-r from-blue-600 to-blue-500">
@@ -166,33 +261,63 @@ const Hero = () => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {passwordArray.map((item, index) => (
-                    <tr key={index} className="hover:bg-blue-50 transition-colors duration-150 ease-in-out">
+                    <tr key={item.id} className="hover:bg-blue-50 transition-colors duration-150 ease-in-out">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{index + 1}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         <div className="flex justify-between items-center">
                           <span>{item.website}</span>
-                          <img className="cursor-pointer opacity-20 hover:opacity-100 transition-opacity ml-2" src={CopyIcon} alt="copy website" onClick={() => copyToClipboard(item.website)} />
+                          <img 
+                            className="cursor-pointer opacity-20 hover:opacity-100 transition-opacity ml-2" 
+                            src={CopyIcon} 
+                            alt="copy website" 
+                            onClick={() => copyToClipboard(item.website)} 
+                          />
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         <div className="flex justify-between items-center">
                           <span>{item.username}</span>
-                          <img className="cursor-pointer opacity-20 hover:opacity-100 transition-opacity ml-2" src={CopyIcon} alt="copy username" onClick={() => copyToClipboard(item.username)} />
+                          <img 
+                            className="cursor-pointer opacity-20 hover:opacity-100 transition-opacity ml-2" 
+                            src={CopyIcon} 
+                            alt="copy username" 
+                            onClick={() => copyToClipboard(item.username)} 
+                          />
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-mono bg-gray-50 rounded-md mx-2">
                         <div className="flex justify-between items-center">
                           <span>{visiblePasswords[index] ? item.password : "••••••••"}</span>
                           <div className="flex items-center">
-                            <img className="cursor-pointer opacity-20 hover:opacity-100 transition-opacity mr-2" src={CopyIcon} alt="copy password" onClick={() => copyToClipboard(item.password)} />
-                            <img className="w-5 cursor-pointer opacity-70 hover:opacity-100 transition-opacity" src={visiblePasswords[index] ? EyeOpenIcon : EyeClosedIcon} alt="toggle password visibility" onClick={() => togglePasswordVisibility(index)} />
+                            <img 
+                              className="cursor-pointer opacity-20 hover:opacity-100 transition-opacity mr-2" 
+                              src={CopyIcon} 
+                              alt="copy password" 
+                              onClick={() => copyToClipboard(item.password)} 
+                            />
+                            <img 
+                              className="w-5 cursor-pointer opacity-70 hover:opacity-100 transition-opacity" 
+                              src={visiblePasswords[index] ? EyeOpenIcon : EyeClosedIcon} 
+                              alt="toggle password visibility" 
+                              onClick={() => togglePasswordVisibility(index)} 
+                            />
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-mono bg-gray-50 rounded-md mx-2">
                         <div className="flex justify-between w-[80%]">
-                          <img className="cursor-pointer hover:scale-110 drop-shadow-md transition-all ease-in-out duration-300 opacity-80 hover:opacity-100" src={EditIcon} alt="Edit" onClick={() => editPassword(item.id)} />
-                          <img className="cursor-pointer hover:scale-110 drop-shadow-md transition-all ease-in-out duration-300 opacity-80 hover:opacity-100" src={DeleteIcon} alt="delete" onClick={() => deletePassword(item.id)} />
+                          <img 
+                            className="cursor-pointer hover:scale-110 drop-shadow-md transition-all ease-in-out duration-300 opacity-80 hover:opacity-100" 
+                            src={EditIcon} 
+                            alt="Edit" 
+                            onClick={() => editPassword(item.id)} 
+                          />
+                          <img 
+                            className="cursor-pointer hover:scale-110 drop-shadow-md transition-all ease-in-out duration-300 opacity-80 hover:opacity-100" 
+                            src={DeleteIcon} 
+                            alt="delete" 
+                            onClick={() => deletePassword(item.id)} 
+                          />
                         </div>
                       </td>
                     </tr>
